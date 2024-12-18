@@ -1,5 +1,6 @@
 import requests
 import json
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 DATABASE_URL = "mysql+pymysql://root:praj9994@localhost/wayport"
 DATABASE_URL = "sqlite:///trains_db.db"
 
-from tt_create_db import StationJunction, JunctionStation
+from tt_create_db import StationJunction, JunctionStation, StationInfo
 
 # """ Format of arguments"""
 # from_station = "NDLS"
@@ -67,14 +68,43 @@ def get_intermediate_station(session, source_stn, destination_stn):
         intermediate_list_5.append(session.query(StationInfo.city_name, StationInfo.state).filter_by(station_code=station[0]).first())
     intermediates= []
     for i in intermediate_list_5:
+        print(i)
         a = session.query(StationInfo.station_code).filter_by(city_name=i[0], state=i[1]).first()
         if a:
             intermediates.append(a[0])
     print(intermediates)
-    return common_stations
+    return intermediates
+
+def find_trains(session, source_stn, destination_stn, datetime_obj):
+    intermediates = get_intermediate_station(session, source_stn, destination_stn)
+    results = []
+    for intermediate in intermediates:
+        # source_stn => intermediate (same day)
+        # intermediate => destination_stn (same day, next day, next to next day)
+        DATETIME_FORMAT = "%d-%m-%Y"
+        today = datetime_obj.strftime(DATETIME_FORMAT)
+        tomorrow = (datetime_obj+timedelta(days=1)).strftime(DATETIME_FORMAT)
+        day_after_tomorrow = (datetime_obj+timedelta(days=2)).strftime(DATETIME_FORMAT)
+        
+        source_stn = source_stn.upper()
+        intermediate = intermediate.upper()
+        destination_stn = destination_stn.upper()
+        first_journey = get_train_booking_data(source_stn, intermediate, today)
+        second_journey = []
+        second_journey.append(get_train_booking_data(intermediate, destination_stn, today))
+        second_journey.append(get_train_booking_data(intermediate, destination_stn, tomorrow))
+        second_journey.append(get_train_booking_data(intermediate, destination_stn, day_after_tomorrow))
+        results.append((first_journey, second_journey))
+    return results
 
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-result = get_intermediate_station(session, 'ned', 'csmt')
+# result = get_intermediate_station(session, 'cmnr', 'sc')
+tomorrow = datetime.now()+timedelta(days=1)
+results = find_trains(session, 'ned', 'rk', tomorrow)
+with open('output.json', 'w') as f:
+    json.dump(results, f, indent=4)
+for result in results:
+    print(len(result))
