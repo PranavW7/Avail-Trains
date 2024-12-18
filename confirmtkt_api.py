@@ -62,9 +62,15 @@ def get_intermediate_station(session, source_stn, destination_stn):
             data['distance'] = int(data['distance'] + dest_record['distance'])
             common_stations.append((station, data))
     common_stations.sort(key=lambda e: e[1]['time'])
-    for station in common_stations[:20]:
-        print(station)
-    print(f'common:{len(common_stations)}')
+    intermediate_list_5 = []
+    for station in common_stations[:5]:
+        intermediate_list_5.append(session.query(StationInfo.city_name, StationInfo.state).filter_by(station_code=station[0]).first())
+    intermediates= []
+    for i in intermediate_list_5:
+        a = session.query(StationInfo.station_code).filter_by(city_name=i[0], state=i[1]).first()
+        if a:
+            intermediates.append(a[0])
+    print(intermediates)
     return common_stations
 
 engine = create_engine(DATABASE_URL)
